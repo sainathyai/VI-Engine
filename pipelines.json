@@ -1,0 +1,62 @@
+{
+  "pipelines": [
+    {
+      "slug": "tech_ai",
+      "label": "Tech & AI",
+      "industry": "tech",
+      "enabled": true,
+      "include_hn": true,
+      "include_ai_blogs": true,
+      "rss_feeds": [
+        "https://techcrunch.com/feed/",
+        "https://feeds.arstechnica.com/arstechnica/index",
+        "https://www.theverge.com/rss/index.xml",
+        "https://www.wired.com/feed/rss",
+        "https://www.technologyreview.com/feed/",
+        "https://venturebeat.com/category/ai/feed/",
+        "https://hackernoon.com/feed",
+        "https://aws.amazon.com/blogs/aws/feed/"
+      ],
+      "google_news_queries": [
+        "LLM release",
+        "AI tools productivity",
+        "AI regulation policy",
+        "cybersecurity breach",
+        "fintech regulation",
+        "AML compliance",
+        "payment systems",
+        "crypto regulation"
+      ]
+    },
+    {
+      "slug": "oil_gas",
+      "label": "Oil & Gas / Energy",
+      "industry": "oil_gas_energy",
+      "enabled": true,
+      "include_hn": false,
+      "include_ai_blogs": false,
+      "rss_feeds": [
+        "https://www.ogj.com/rss/all.xml",
+        "https://jpt.spe.org/rss/recent-articles",
+        "https://www.rigzone.com/rss/news/",
+        "https://www.worldoil.com/rss",
+        "https://www.naturalgasintel.com/feed/",
+        "https://oilprice.com/rss/main"
+      ],
+      "google_news_queries": [
+        "microseismic processing oil gas",
+        "microseismic monitoring fracturing",
+        "unconventional well stimulation",
+        "completion optimization shale",
+        "hydraulic fracturing technology",
+        "drilling technology permian basin",
+        "oilfield services technology",
+        "OPEC production output",
+        "LNG export terminal",
+        "oil gas digital transformation AI",
+        "carbon capture sequestration",
+        "upstream midstream downstream technology"
+      ]
+    }
+  ]
+}

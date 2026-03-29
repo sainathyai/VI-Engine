@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% set active = "home" %}
+{% block domain_tag %}{{ domain }}{% endblock %}
+
+{% block title %}VI Engine — Dashboard{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1.75rem; display: flex; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+    <div>
+        <h1 style="font-size: 1.75rem; margin-bottom: 0.15rem;">Dashboard</h1>
+        <p style="color: var(--text-dim); font-size: 0.88rem;">Newsletter intelligence pipeline &middot; {{ domain }}</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem;">
+        <a href="/topics" class="btn btn-primary btn-sm" style="gap: 0.4rem;">
+            &#9654; Review Topics
+            {% if counts.get('discovered', 0) %}<span style="background: rgba(255,255,255,0.2); border-radius: 4px; padding: 0 5px; font-size: 0.75rem;">{{ counts.get('discovered', 0) }}</span>{% endif %}
+        </a>
+        <a href="/generate" class="btn btn-outline btn-sm">
+            Generate
+            {% if counts.get('approved', 0) %}<span style="background: var(--accent-glow); border-radius: 4px; padding: 0 5px; font-size: 0.75rem; color: var(--accent);">{{ counts.get('approved', 0) }}</span>{% endif %}
+        </a>
+    </div>
+</div>
+
+<!-- Pipeline stats -->
+<div class="stats" style="grid-template-columns: repeat(5, 1fr);">
+    <a href="/topics?status=discovered" style="text-decoration: none;">
+        <div class="stat-card">
+            <div class="number" style="color: var(--yellow);">{{ counts.get('discovered', 0) }}</div>
+            <div class="label">Discovered</div>
+        </div>
+    </a>
+    <a href="/topics?status=approved" style="text-decoration: none;">
+        <div class="stat-card">
+            <div class="number" style="color: var(--blue);">{{ counts.get('approved', 0) }}</div>
+            <div class="label">Approved</div>
+        </div>
+    </a>
+    <a href="/topics?status=summarized" style="text-decoration: none;">
+        <div class="stat-card">
+            <div class="number" style="color: var(--purple);">{{ counts.get('summarized', 0) }}</div>
+            <div class="label">Summarized</div>
+        </div>
+    </a>
+    <a href="/newsletters" style="text-decoration: none;">
+        <div class="stat-card">
+            <div class="number" style="color: var(--green);">{{ newsletters|selectattr('status', 'equalto', 'published')|list|length }}</div>
+            <div class="label">Published</div>
+        </div>
+    </a>
+    <a href="/topics?status=discarded" style="text-decoration: none;">
+        <div class="stat-card">
+            <div class="number" style="color: var(--text-dim);">{{ counts.get('discarded', 0) }}</div>
+            <div class="label">Discarded</div>
+        </div>
+    </a>
+</div>
+
+<!-- Workflow pipeline -->
+<div class="card" style="padding: 1.5rem 2rem; margin-bottom: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 0; justify-content: space-between; flex-wrap: wrap;">
+        {% set steps = [
+            ("1", "Collect", "/topics", "Discover from sources", counts.get('discovered', 0), "var(--yellow)"),
+            ("2", "Review", "/topics", "Approve or discard", counts.get('approved', 0), "var(--blue)"),
+            ("3", "Generate", "/generate", "AI synthesis", counts.get('summarized', 0), "var(--purple)"),
+            ("4", "Publish", "/newsletters", "Push live", newsletters|selectattr('status', 'equalto', 'published')|list|length, "var(--green)")
+        ] %}
+        {% for num, label, href, desc, count, color in steps %}
+        <a href="{{ href }}" style="text-decoration: none; flex: 1; min-width: 120px;">
+            <div style="text-align: center; padding: 0.5rem 1rem; transition: all 0.15s;">
+                <div style="width: 44px; height: 44px; border-radius: 50%; background: {{ color }}18; border: 2px solid {{ color }}60; display: flex; align-items: center; justify-content: center; margin: 0 auto 0.6rem; font-weight: 700; font-size: 1rem; color: {{ color }};">{{ num }}</div>
+                <div style="font-weight: 600; font-size: 0.9rem; color: var(--text);">{{ label }}</div>
+                <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.1rem;">{{ desc }}</div>
+                <div style="font-size: 1.4rem; font-weight: 700; color: {{ color }}; margin-top: 0.3rem; letter-spacing: -0.02em;">{{ count }}</div>
+            </div>
+        </a>
+        {% if not loop.last %}
+        <div style="color: var(--border); font-size: 1.5rem; flex-shrink: 0; padding-bottom: 1rem;">&#10230;</div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1.4fr; gap: 1.25rem;">
+    <!-- Quick actions -->
+    <div>
+        <div class="section-label" style="margin-bottom: 0.65rem;">Actions</div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <a href="/topics?status=discovered" class="btn btn-primary" style="justify-content: space-between; padding: 0.7rem 1rem;">
+                <span>&#128269; Review Topics</span>
+                {% if counts.get('discovered', 0) %}<span style="font-size: 0.78rem; opacity: 0.8;">{{ counts.get('discovered', 0) }} pending</span>{% endif %}
+            </a>
+            <a href="/generate" class="btn btn-outline" style="justify-content: space-between; padding: 0.7rem 1rem;">
+                <span>&#9889; Generate Newsletter</span>
+                {% if counts.get('approved', 0) %}<span style="font-size: 0.78rem; color: var(--accent);">{{ counts.get('approved', 0) }} ready</span>{% endif %}
+            </a>
+            <a href="/newsletters" class="btn btn-outline" style="justify-content: space-between; padding: 0.7rem 1rem;">
+                <span>&#128240; View Newsletters</span>
+                <span style="font-size: 0.78rem; color: var(--text-dim);">{{ newsletters|length }} total</span>
+            </a>
+        </div>
+
+        <div class="section-label" style="margin-top: 1.5rem; margin-bottom: 0.5rem;">Collection</div>
+        <div class="card" style="padding: 1rem; background: var(--surface2);">
+            <p style="font-size: 0.82rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Fetch new articles from all configured sources (HN, RSS feeds, Google News).</p>
+            <button id="run-collect-btn" class="btn btn-primary" style="width: 100%; justify-content: center;" onclick="runCollection()">
+                &#8635; Run Collection
+            </button>
+            <div id="collect-status" style="margin-top: 0.6rem; font-size: 0.8rem; display: none;"></div>
+        </div>
+    </div>
+
+    <!-- Recent newsletters -->
+    <div>
+        <div class="section-label" style="margin-bottom: 0.65rem;">Recent Newsletters</div>
+        {% if newsletters %}
+            {% for nl in newsletters[:5] %}
+            <div class="card" style="padding: 0.75rem 1rem; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.6rem;">
+                    <span class="badge badge-{{ nl.status }}">{{ nl.status }}</span>
+                    <a href="/newsletters/{{ nl.id }}" style="font-weight: 500; flex: 1; color: var(--text); font-size: 0.9rem;">{{ nl.title }}</a>
+                    <a href="/newsletters/{{ nl.id }}" class="btn btn-ghost btn-sm" style="font-size: 0.75rem;">Open &nearr;</a>
+                </div>
+                <div class="meta" style="margin-top: 0.2rem; padding-left: 0.1rem;">{{ nl.created_at }}</div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state" style="padding: 2rem;">
+                <p style="margin-bottom: 0.5rem;">No newsletters yet</p>
+                <p style="font-size: 0.82rem;"><a href="/topics">Start by reviewing topics</a></p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function runCollection() {
+    const btn = document.getElementById('run-collect-btn');
+    const status = document.getElementById('collect-status');
+    btn.disabled = true;
+    btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;vertical-align:middle;margin-right:6px;"></span> Running...';
+    status.style.display = 'none';
+
+    try {
+        const resp = await fetch('/run/collect', { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) {
+            status.style.display = 'block';
+            status.style.color = 'var(--green)';
+            status.innerHTML = '&#10003; ' + data.message + ' &mdash; <a href="/topics" style="color:var(--accent);">review new topics &rarr;</a>';
+            btn.innerHTML = '&#8635; Run Collection';
+            btn.disabled = false;
+            // Refresh stat counts after collection has time to complete
+            setTimeout(() => location.reload(), 8000);
+        } else {
+            throw new Error(data.error || 'Failed');
+        }
+    } catch (err) {
+        status.style.display = 'block';
+        status.style.color = 'var(--red)';
+        status.textContent = '\u2717 ' + err.message;
+        btn.innerHTML = '&#8635; Run Collection';
+        btn.disabled = false;
+    }
+}
+</script>
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}

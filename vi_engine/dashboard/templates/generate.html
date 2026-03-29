@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% set active = "generate" %}
+
+{% block title %}Generate Newsletter — VI Engine{% endblock %}
+
+{% block content %}
+<h1>Generate Newsletter</h1>
+<h2>Summarize approved topics, then compile into a newsletter draft</h2>
+
+{% if approved %}
+<div class="card" style="margin-bottom: 1.5rem; padding: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--blue-bg); border: 2px solid var(--blue); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: var(--blue); flex-shrink: 0;">1</div>
+        <div>
+            <h3 style="margin: 0;">Summarize Approved Topics</h3>
+            <p style="font-size: 0.8rem; color: var(--text-dim); margin: 0;">{{ approved|length }} topics ready for AI synthesis</p>
+        </div>
+    </div>
+    <form method="post" action="/generate/summarize" id="summarize-form">
+        <input type="hidden" name="candidate_ids" id="summarize-ids">
+        <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+            {% for c in approved %}
+            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; background: var(--surface2); border-radius: 8px;">
+                <label class="checkbox-label">
+                    <input type="checkbox" class="approve-cb" value="{{ c.id }}" checked>
+                </label>
+                <span class="badge badge-{{ c.source }}">{{ c.source|replace('_', ' ') }}</span>
+                <span style="font-weight: 500; flex: 1;">{{ c.title or '(no title)' }}</span>
+                <span class="meta">{{ c.pub_date or '' }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary" onclick="document.getElementById('summarize-ids').value = Array.from(document.querySelectorAll('.approve-cb:checked')).map(cb=>cb.value).join(','); return true;">
+            Summarize Selected
+        </button>
+        <span style="font-size: 0.78rem; color: var(--text-dim); margin-left: 0.75rem;">Uses Jina Reader + Claude API</span>
+    </form>
+</div>
+{% endif %}
+
+{% if summarized %}
+<div class="card" style="padding: 1.5rem;">
+    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+        <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--purple-bg); border: 2px solid var(--purple); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem; color: var(--purple); flex-shrink: 0;">2</div>
+        <div>
+            <h3 style="margin: 0;">Compile Newsletter</h3>
+            <p style="font-size: 0.8rem; color: var(--text-dim); margin: 0;">{{ summarized|length }} summarized topics available</p>
+        </div>
+    </div>
+    <form method="post" action="/generate/newsletter" id="newsletter-form">
+        <input type="hidden" name="candidate_ids" id="newsletter-ids">
+        <div style="margin-bottom: 1rem;">
+            <label style="font-size: 0.85rem; color: var(--text-secondary); display: block; margin-bottom: 0.3rem;">Newsletter title</label>
+            <input type="text" name="title" placeholder="e.g. Weekly Fintech Digest — March 2026" style="width: 100%; background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 0.6rem 0.75rem; border-radius: 8px; font-size: 0.9rem;">
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem;">
+            {% for c in summarized %}
+            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; background: var(--surface2); border-radius: 8px; border-left: 3px solid var(--purple);">
+                <label class="checkbox-label">
+                    <input type="checkbox" class="summary-cb" value="{{ c.id }}" checked>
+                </label>
+                <span class="badge badge-{{ c.source }}">{{ c.source|replace('_', ' ') }}</span>
+                <span style="font-weight: 500; flex: 1;">{{ c.title or '(no title)' }}</span>
+                <span class="meta">{{ c.summarized_at or '' }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-success" onclick="document.getElementById('newsletter-ids').value = Array.from(document.querySelectorAll('.summary-cb:checked')).map(cb=>cb.value).join(','); return true;">
+            Compile Newsletter Draft
+        </button>
+    </form>
+</div>
+{% endif %}
+
+{% if not approved and not summarized %}
+<div class="empty-state">
+    <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">Nothing to generate yet</p>
+    <p><a href="/topics">Review and approve topics</a> first, then come back here.</p>
+</div>
+{% endif %}
+{% endblock %}

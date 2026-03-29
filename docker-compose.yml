@@ -1,0 +1,28 @@
+version: "3.9"
+
+# Shared volume mounts so both services read/write the same SQLite DB and outputs.
+x-volumes: &shared-volumes
+  - ./outputs:/app/outputs
+  - ./state.sqlite3:/app/state.sqlite3
+
+services:
+
+  # ── Dashboard (human review + publish gate) ────────────────────────────────
+  dashboard:
+    build: .
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes: *shared-volumes
+    restart: unless-stopped
+
+  # ── Collector (one-shot discovery job) ────────────────────────────────────
+  # Run manually:  docker compose run --rm collector
+  # Or triggered via POST /run/collect from Cloud Scheduler in production.
+  collector:
+    build: .
+    env_file: .env
+    volumes: *shared-volumes
+    command: ["python", "-m", "vi_engine.collect_candidates"]
+    profiles:
+      - tools   # not started by default; run with: docker compose --profile tools run collector

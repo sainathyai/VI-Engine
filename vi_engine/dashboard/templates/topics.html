@@ -1,0 +1,492 @@
+{% extends "base.html" %}
+{% set active = "topics" %}
+
+{% block title %}Topics — VI Engine{% endblock %}
+
+{% block content %}
+<!-- Split-panel layout — left list, right iframe -->
+<div class="topics-shell">
+
+    <!-- ── Left panel ─────────────────────────────────────── -->
+    <div class="topics-left" id="topics-left">
+
+        <!-- Header + bulk actions -->
+        <div class="tl-header">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-weight: 700; font-size: 1rem;">Topic Review</span>
+                    <span style="color: var(--text-dim); font-size: 0.78rem;">{{ candidates|length }} articles</span>
+                    <button id="refresh-btn" class="btn btn-ghost btn-sm" onclick="runRefresh()" title="Fetch new articles" style="border: 1px solid var(--border); font-size: 0.78rem; padding: 0.2rem 0.5rem;">&#8635;</button>
+                    <span id="refresh-status" style="font-size: 0.72rem; display: none;"></span>
+                </div>
+                {% if status == 'discovered' and candidates %}
+                <div style="display: flex; gap: 0.35rem;">
+                    <form method="post" action="/topics/approve" id="bulk-approve-form">
+                        <input type="hidden" name="candidate_ids" id="bulk-approve-ids">
+                        <button type="submit" class="btn btn-success btn-sm" onclick="return setBulkIds('bulk-approve-ids')" title="Approve selected">&#10003;</button>
+                    </form>
+                    <form method="post" action="/topics/discard" id="bulk-discard-form">
+                        <input type="hidden" name="candidate_ids" id="bulk-discard-ids">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return setBulkIds('bulk-discard-ids')" title="Discard selected">&#10007;</button>
+                    </form>
+                    <button class="btn btn-ghost btn-sm" onclick="toggleAll()" title="Select all" style="border: 1px solid var(--border);">&#9744;</button>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Filter bar -->
+            <form method="get" action="/topics" id="filter-form" style="margin-top: 0.6rem;">
+                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;">
+                    <select name="status" class="form-select" style="flex: 1; min-width: 100px;" onchange="document.getElementById('filter-form').submit()">
+                        <option value="discovered" {% if status == 'discovered' %}selected{% endif %}>Discovered</option>
+                        <option value="approved" {% if status == 'approved' %}selected{% endif %}>Approved</option>
+                        <option value="summarized" {% if status == 'summarized' %}selected{% endif %}>Summarized</option>
+                        <option value="discarded" {% if status == 'discarded' %}selected{% endif %}>Discarded</option>
+                    </select>
+
+                    {% if filter_categories %}
+                    <select name="category" class="form-select" style="flex: 1; min-width: 100px;" onchange="document.getElementById('filter-form').submit()">
+                        <option value="">All categories</option>
+                        {% for cat in filter_categories %}
+                        <option value="{{ cat }}" {% if category == cat %}selected{% endif %}>{{ cat }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+
+                    {% if filter_pipelines and filter_pipelines|length > 1 %}
+                    <select name="pipeline" class="form-select" style="flex: 1; min-width: 110px;" onchange="document.getElementById('filter-form').submit()">
+                        <option value="">All pipelines</option>
+                        {% for pl in filter_pipelines %}
+                        <option value="{{ pl }}" {% if pipeline == pl %}selected{% endif %}>{{ pipeline_labels.get(pl, pl|replace('_', ' ')|title) }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+
+                    {% if filter_sources %}
+                    <select name="source" class="form-select" style="flex: 1; min-width: 100px;" onchange="document.getElementById('filter-form').submit()">
+                        <option value="">All sources</option>
+                        {% for src in filter_sources %}
+                        {% set src_labels = {'hacker_news': 'HN', 'ai_company_rss': 'AI Blog', 'tech_news': 'Tech', 'google_news': 'G.News', 'google_alerts_rss': 'Alert', 'pipeline_rss': 'RSS'} %}
+                        <option value="{{ src }}" {% if source == src %}selected{% endif %}>{{ src_labels.get(src, src|replace('_', ' ')) }}</option>
+                        {% endfor %}
+                    </select>
+                    {% endif %}
+
+                    <select name="sort_by" class="form-select" style="flex: 1; min-width: 90px;" onchange="document.getElementById('filter-form').submit()">
+                        <option value="score" {% if sort_by == 'score' %}selected{% endif %}>&#9650; Score</option>
+                        <option value="date" {% if sort_by == 'date' %}selected{% endif %}>Newest</option>
+                        <option value="title" {% if sort_by == 'title' %}selected{% endif %}>A–Z</option>
+                    </select>
+
+                    {% if category or source or pipeline %}
+                    <a href="/topics?status={{ status }}" class="btn btn-ghost btn-sm" style="font-size: 0.75rem; color: var(--text-dim);" title="Clear filters">&#10005;</a>
+                    {% endif %}
+                </div>
+            </form>
+        </div>
+
+        <!-- Article list -->
+        <div class="tl-list" id="tl-list">
+            {% if not candidates %}
+            <div style="text-align: center; padding: 3rem 1.5rem; color: var(--text-dim);">
+                <p style="font-size: 1rem; margin-bottom: 0.5rem;">No {{ status }} topics</p>
+                {% if status == 'discovered' %}
+                <p style="font-size: 0.82rem;">Run <code style="background: var(--surface3); padding: 0.15rem 0.4rem; border-radius: 4px;">python -m vi_engine.collect_candidates</code></p>
+                {% endif %}
+            </div>
+            {% else %}
+            {% for c in candidates %}
+            {% set domain = c.url.replace('https://','').replace('http://','').split('/')[0] if c.url else '' %}
+            <div class="tl-card {% if loop.first %}tl-card-active{% endif %}"
+                 id="tlcard-{{ c.id }}"
+                 data-index="{{ loop.index0 }}"
+                 data-url="{{ c.url or '' }}"
+                 onclick="selectCard(this)">
+
+                <div style="display: flex; align-items: flex-start; gap: 0.5rem;">
+                    {% if status == 'discovered' %}
+                    <label class="checkbox-label" style="margin-top: 2px; flex-shrink: 0;" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="topic-cb" value="{{ c.id }}">
+                    </label>
+                    {% endif %}
+
+                    <div style="flex: 1; min-width: 0;">
+                        <!-- Badges -->
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.3rem;">
+                            {% set source_labels = {'hacker_news': 'HN', 'ai_company_rss': 'AI Blog', 'tech_news': 'Tech', 'google_news': 'G.News', 'google_alerts_rss': 'Alert'} %}
+                            <span class="badge badge-{{ c.source }}">{{ source_labels.get(c.source, c.source|replace('_', ' ')) }}</span>
+                            {% if c.score %}
+                            <span class="badge" style="background: rgba(251,191,36,0.12); color: #fbbf24; border-color: rgba(251,191,36,0.25); font-weight: 700;">&#9650; {{ c.score }}</span>
+                            {% endif %}
+                            {% if c.category %}
+                            {% set cat_colors = {'AI & Machine Learning': '#818cf8', 'Cybersecurity': '#f87171', 'Fintech & Crypto': '#fbbf24', 'Gaming': '#4ade80', 'Cloud & Infrastructure': '#60a5fa', 'Software Dev': '#a78bfa', 'Hardware & Chips': '#fb923c', 'Business & Startups': '#38bdf8', 'Science & Research': '#34d399', 'Policy & Regulation': '#f472b6'} %}
+                            {% set cc = cat_colors.get(c.category, '#94a3b8') %}
+                            <span class="badge" style="background: {{ cc }}15; color: {{ cc }}; border-color: {{ cc }}40;">{{ c.category }}</span>
+                            {% endif %}
+                        </div>
+
+                        <!-- Title -->
+                        <div class="tl-title">{{ c.title or '(no title)' }}</div>
+
+                        <!-- Domain + date -->
+                        <div style="font-size: 0.72rem; color: var(--text-dim); margin-top: 0.2rem; display: flex; gap: 0.4rem; flex-wrap: wrap;">
+                            {% if domain %}<span>{{ domain }}</span>{% endif %}
+                            {% if c.pub_date %}<span>&middot; {{ c.pub_date }}</span>{% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Action buttons -->
+                    {% if status == 'discovered' %}
+                    <div style="display: flex; flex-direction: column; gap: 0.25rem; flex-shrink: 0;" onclick="event.stopPropagation()">
+                        <form method="post" action="/topics/{{ c.id }}/approve">
+                            <button type="submit" class="btn btn-success btn-sm" style="width: 32px; height: 28px; padding: 0;" title="Approve">&#10003;</button>
+                        </form>
+                        <form method="post" action="/topics/{{ c.id }}/discard">
+                            <button type="submit" class="btn btn-danger btn-sm" style="width: 32px; height: 28px; padding: 0;" title="Discard">&#10007;</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+            {% endif %}
+        </div>
+
+        <!-- Pagination -->
+        {% if has_next or page > 1 %}
+        <div class="tl-pagination">
+            {% if page > 1 %}
+            <a href="/topics?status={{ status }}&page={{ page - 1 }}&page_size={{ page_size }}{% if category %}&category={{ category }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if pipeline %}&pipeline={{ pipeline }}{% endif %}{% if sort_by %}&sort_by={{ sort_by }}{% endif %}" class="btn btn-outline btn-sm">&laquo;</a>
+            {% endif %}
+            <span style="font-size: 0.78rem; color: var(--text-dim); padding: 0 0.5rem;">Page {{ page }}</span>
+            {% if has_next %}
+            <a href="/topics?status={{ status }}&page={{ page + 1 }}&page_size={{ page_size }}{% if category %}&category={{ category }}{% endif %}{% if source %}&source={{ source }}{% endif %}{% if pipeline %}&pipeline={{ pipeline }}{% endif %}{% if sort_by %}&sort_by={{ sort_by }}{% endif %}" class="btn btn-outline btn-sm">&raquo;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ── Right panel — iframe viewer ────────────────────── -->
+    <div class="topics-right">
+        <div class="iframe-toolbar" id="iframe-toolbar">
+            <div style="flex: 1; min-width: 0;">
+                <div class="iframe-title" id="iframe-title">
+                    {% if candidates %}{{ candidates[0].title or '' }}{% else %}No articles{% endif %}
+                </div>
+                <div class="iframe-url" id="iframe-url">
+                    {% if candidates %}{{ candidates[0].url or '' }}{% endif %}
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.4rem; align-items: center; flex-shrink: 0;">
+                <button class="btn btn-ghost btn-sm" onclick="navigate(-1)" id="prev-btn" title="Previous article" style="border: 1px solid var(--border);">&#8592; Prev</button>
+                <span class="iframe-counter" id="iframe-counter">
+                    {% if candidates %}1 / {{ candidates|length }}{% endif %}
+                </span>
+                <button class="btn btn-ghost btn-sm" onclick="navigate(1)" id="next-btn" title="Next article" style="border: 1px solid var(--border);">Next &#8594;</button>
+                <a id="open-tab-btn" href="{{ candidates[0].url if candidates else '#' }}" target="_blank" class="btn btn-sm" style="background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(129,140,248,0.3);" title="Open in new tab">&#8599; Open</a>
+            </div>
+        </div>
+
+        <div class="iframe-wrap" id="iframe-wrap">
+            {% if candidates and candidates[0].url %}
+            <iframe id="article-frame" src="{{ candidates[0].url }}" allowfullscreen></iframe>
+            <div class="iframe-blocked" id="iframe-blocked" style="display: none;">
+                <div style="text-align: center;">
+                    <div style="font-size: 2rem; margin-bottom: 0.75rem;">&#128215;</div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">This site doesn't allow embedding.</p>
+                    <a id="blocked-open-btn" href="{{ candidates[0].url }}" target="_blank" class="btn btn-primary">Open in new tab &#8599;</a>
+                </div>
+            </div>
+            {% else %}
+            <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim);">
+                <p>No articles to display</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+/* ── Override container for full-bleed split layout ── */
+.container { max-width: 100% !important; padding: 0 !important; }
+
+/* ── Shell ── */
+.topics-shell {
+    display: flex;
+    height: calc(100vh - 56px);
+    overflow: hidden;
+}
+
+/* ── Left panel ── */
+.topics-left {
+    width: 35%;
+    min-width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+    height: 100%;
+}
+.tl-header {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    background: var(--surface2);
+}
+.tl-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+.tl-card {
+    padding: 0.75rem 0.85rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all var(--transition);
+    background: var(--bg);
+}
+.tl-card:hover { border-color: var(--border-hover); background: var(--surface3); }
+.tl-card-active { border-color: var(--accent) !important; background: var(--accent-glow) !important; }
+.tl-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.tl-pagination {
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+    background: var(--surface2);
+}
+
+/* ── Right panel ── */
+.topics-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-width: 0;
+    background: var(--bg);
+}
+.iframe-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+    flex-shrink: 0;
+}
+.iframe-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+}
+.iframe-url {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 0.1rem;
+}
+.iframe-counter {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    min-width: 50px;
+    text-align: center;
+}
+.iframe-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+.iframe-wrap iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+    background: #fff;
+}
+.iframe-blocked {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+
+<script>
+// ── Build articles array from template ──
+const articles = [
+    {% for c in candidates %}
+    { id: {{ c.id }}, url: {{ c.url|tojson if c.url else 'null' }}, title: {{ (c.title or '')|tojson }}, index: {{ loop.index0 }} }{% if not loop.last %},{% endif %}
+    {% endfor %}
+];
+
+let currentIndex = 0;
+
+function getCardEl(index) {
+    return document.querySelector('[data-index="' + index + '"]');
+}
+
+function selectCard(el) {
+    // Remove active from previous
+    document.querySelectorAll('.tl-card-active').forEach(c => c.classList.remove('tl-card-active'));
+    el.classList.add('tl-card-active');
+    const idx = parseInt(el.dataset.index, 10);
+    currentIndex = idx;
+    loadArticle(idx);
+}
+
+function loadArticle(idx) {
+    if (idx < 0 || idx >= articles.length) return;
+    const a = articles[idx];
+    const frame = document.getElementById('article-frame');
+    const blocked = document.getElementById('iframe-blocked');
+    const titleEl = document.getElementById('iframe-title');
+    const urlEl = document.getElementById('iframe-url');
+    const counterEl = document.getElementById('iframe-counter');
+    const openBtn = document.getElementById('open-tab-btn');
+    const blockedOpenBtn = document.getElementById('blocked-open-btn');
+
+    if (titleEl) titleEl.textContent = a.title;
+    if (urlEl) urlEl.textContent = a.url || '';
+    if (counterEl) counterEl.textContent = (idx + 1) + ' / ' + articles.length;
+    if (openBtn && a.url) { openBtn.href = a.url; }
+    if (blockedOpenBtn && a.url) { blockedOpenBtn.href = a.url; }
+
+    if (frame) {
+        if (blocked) blocked.style.display = 'none';
+        frame.style.display = 'block';
+        if (a.url) {
+            frame.src = a.url;
+        } else {
+            frame.src = 'about:blank';
+        }
+    }
+
+    // Scroll card into view in left panel
+    const card = getCardEl(idx);
+    if (card) card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+    // Update prev/next button states
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    if (prevBtn) prevBtn.disabled = idx === 0;
+    if (nextBtn) nextBtn.disabled = idx === articles.length - 1;
+}
+
+function navigate(dir) {
+    const newIdx = currentIndex + dir;
+    if (newIdx < 0 || newIdx >= articles.length) return;
+    // Deactivate current card
+    document.querySelectorAll('.tl-card-active').forEach(c => c.classList.remove('tl-card-active'));
+    const card = getCardEl(newIdx);
+    if (card) card.classList.add('tl-card-active');
+    currentIndex = newIdx;
+    loadArticle(newIdx);
+}
+
+// Detect iframe blocked (best-effort — not foolproof due to CORS)
+document.addEventListener('DOMContentLoaded', function() {
+    const frame = document.getElementById('article-frame');
+    if (!frame) return;
+
+    frame.addEventListener('error', function() {
+        showBlocked();
+    });
+
+    // Keyboard navigation: left/right arrow keys
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') navigate(1);
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') navigate(-1);
+    });
+
+    // Set initial button states
+    const prevBtn = document.getElementById('prev-btn');
+    if (prevBtn) prevBtn.disabled = true;
+    if (articles.length <= 1) {
+        const nextBtn = document.getElementById('next-btn');
+        if (nextBtn) nextBtn.disabled = true;
+    }
+});
+
+function showBlocked() {
+    const frame = document.getElementById('article-frame');
+    const blocked = document.getElementById('iframe-blocked');
+    if (frame) frame.style.display = 'none';
+    if (blocked) blocked.style.display = 'flex';
+}
+
+// ── Collection refresh ──
+async function runRefresh() {
+    const btn = document.getElementById('refresh-btn');
+    const statusEl = document.getElementById('refresh-status');
+    btn.disabled = true;
+    btn.textContent = '...';
+    statusEl.style.display = 'inline';
+    statusEl.style.color = 'var(--text-dim)';
+    statusEl.textContent = 'Fetching...';
+
+    try {
+        const resp = await fetch('/run/collect', { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) {
+            statusEl.style.color = 'var(--green)';
+            statusEl.textContent = 'Started — reloading in 8s';
+            setTimeout(() => location.reload(), 8000);
+        } else {
+            throw new Error(data.error || 'Failed');
+        }
+    } catch (err) {
+        statusEl.style.color = 'var(--red)';
+        statusEl.textContent = 'Error: ' + err.message;
+        btn.disabled = false;
+        btn.textContent = '↻';
+    }
+}
+
+// ── Bulk selection helpers ──
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.topic-cb:checked')).map(cb => cb.value).join(',');
+}
+function setBulkIds(inputId) {
+    const ids = getSelectedIds();
+    if (!ids) { alert('Select at least one topic.'); return false; }
+    document.getElementById(inputId).value = ids;
+    return true;
+}
+function toggleAll() {
+    const cbs = document.querySelectorAll('.topic-cb');
+    const allChecked = Array.from(cbs).every(cb => cb.checked);
+    cbs.forEach(cb => cb.checked = !allChecked);
+}
+</script>
+{% endblock %}

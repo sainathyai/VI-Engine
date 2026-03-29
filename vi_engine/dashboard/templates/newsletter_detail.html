@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% set active = "newsletters" %}
+
+{% block title %}{{ newsletter.title }} — VI Engine{% endblock %}
+
+{% block content %}
+<a href="/newsletters" style="font-size: 0.85rem; color: var(--text-dim);">&larr; All newsletters</a>
+
+<div style="margin-top: 0.75rem; margin-bottom: 1.5rem;">
+    <h1>{{ newsletter.title }}</h1>
+    <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 0.25rem;">
+        <span class="badge badge-{{ newsletter.status }}">{{ newsletter.status }}</span>
+        <span class="meta">Created {{ newsletter.created_at }}</span>
+        {% if newsletter.published_at %}<span class="meta">&middot; Published {{ newsletter.published_at }}</span>{% endif %}
+    </div>
+</div>
+
+<!-- Editorial Controls: Voice + Industry -->
+<div class="card" style="margin-bottom: 1rem; padding: 1.25rem;">
+    <h3 style="margin-bottom: 0.75rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);">
+        Editorial Settings
+        <span class="meta" style="text-transform: none; letter-spacing: 0; font-weight: 400; margin-left: 0.5rem;">Controls voice and platform preview generation</span>
+    </h3>
+    <form method="post" action="/newsletters/{{ newsletter.id }}/skills" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+        <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+            <label style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em;">Editorial Voice</label>
+            <select name="voice" class="form-select" style="min-width: 180px;">
+                <option value="">— No voice —</option>
+                {% for v in voices %}
+                <option value="{{ v.key }}" {% if newsletter.voice == v.key %}selected{% endif %}>{{ v.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 0.35rem;">
+            <label style="font-size: 0.78rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em;">Industry</label>
+            <select name="industry" class="form-select" style="min-width: 180px;">
+                <option value="">— No industry —</option>
+                {% for ind in industries %}
+                <option value="{{ ind.key }}" {% if newsletter.industry == ind.key %}selected{% endif %}>{{ ind.label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Save Settings</button>
+    </form>
+    {% if newsletter.voice or newsletter.industry %}
+    <div style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-secondary);">
+        Active:
+        {% if newsletter.voice %}<strong>{{ newsletter.voice | replace('_', ' ') | title }}</strong>{% endif %}
+        {% if newsletter.voice and newsletter.industry %} &middot; {% endif %}
+        {% if newsletter.industry %}<strong>{{ newsletter.industry | replace('_', ' ') | title }}</strong>{% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Included Topics -->
+<div class="card" style="margin-bottom: 1rem; padding: 1.25rem;">
+    <h3 style="margin-bottom: 0.75rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);">Included Topics ({{ items|length }})</h3>
+    {% for item in items %}
+    <div style="padding: 0.5rem 0; {% if not loop.last %}border-bottom: 1px solid var(--border);{% endif %} display: flex; gap: 0.5rem; align-items: center;">
+        <span class="badge badge-{{ item.source }}">{{ item.source|replace('_', ' ') }}</span>
+        <span style="font-weight: 500; flex: 1;">{{ item.title }}</span>
+        {% if item.url %}<a href="{{ item.url }}" target="_blank" class="btn btn-ghost btn-sm" style="font-size: 0.75rem;">Visit &nearr;</a>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Platform Previews -->
+<div class="card" style="margin-bottom: 1rem; padding: 1.25rem;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+        <h3 style="font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 0;">Platform Previews</h3>
+        <span class="meta" style="font-size: 0.78rem;">Generated on-demand using your voice + industry settings</span>
+    </div>
+
+    <!-- Tab bar -->
+    <div style="display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem;">
+        {% set platform_labels = {"blog": "Blog Post", "linkedin": "LinkedIn", "twitter": "X / Twitter"} %}
+        {% for p in preview_platforms %}
+        <button class="preview-tab {% if loop.first %}active{% endif %}" data-tab="{{ p }}"
+            style="padding: 0.5rem 1.1rem; background: none; border: none; border-bottom: 2px solid {% if loop.first %}var(--accent){% else %}transparent{% endif %}; color: {% if loop.first %}var(--accent){% else %}var(--text-secondary){% endif %}; cursor: pointer; font-size: 0.85rem; font-weight: 500; transition: color 0.15s, border-color 0.15s;"
+            onclick="switchTab('{{ p }}', this)">
+            {{ platform_labels.get(p, p) }}
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Tab content panels -->
+    {% for p in preview_platforms %}
+    <div id="tab-{{ p }}" class="preview-panel" style="display: {% if loop.first %}block{% else %}none{% endif %};">
+        <div id="preview-content-{{ p }}" class="preview" style="min-height: 120px; white-space: pre-wrap; font-family: inherit; font-size: 0.88rem; color: var(--text-secondary);">
+            <span style="color: var(--text-dim); font-style: italic;">Click "Generate Preview" to create a {{ platform_labels.get(p, p) }} version.</span>
+        </div>
+        <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; align-items: center;">
+            <button class="btn btn-primary btn-sm" onclick="generatePreview('{{ p }}', {{ newsletter.id }})">
+                Generate Preview
+            </button>
+            <button class="btn btn-ghost btn-sm" onclick="copyPreview('{{ p }}')" style="display: none;" id="copy-btn-{{ p }}">
+                Copy
+            </button>
+            <span id="preview-status-{{ p }}" class="meta" style="font-size: 0.78rem;"></span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Source Preview (Raw Draft) -->
+<div class="card" style="margin-bottom: 1rem; padding: 1.25rem;">
+    <h3 style="margin-bottom: 0.75rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);">Source Draft</h3>
+    <div class="preview" style="white-space: pre-wrap; font-size: 0.85rem;">{{ newsletter.body }}</div>
+    {% if newsletter.output_path %}
+    <div class="meta" style="margin-top: 0.5rem;">{{ newsletter.output_path }}</div>
+    {% endif %}
+</div>
+
+<!-- Publish Targets -->
+<div class="card" style="margin-bottom: 1rem; padding: 1.25rem;">
+    <h3 style="margin-bottom: 0.75rem; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim);">Publish Destinations</h3>
+
+    {% if targets %}
+    <div style="margin-bottom: 1rem;">
+        {% for t in targets %}
+        <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; {% if not loop.last %}border-bottom: 1px solid var(--border);{% endif %}">
+            <span class="badge badge-{{ t.status }}">{{ t.status }}</span>
+            <span style="font-weight: 600; text-transform: capitalize;">{{ t.platform }}</span>
+            {% if t.publish_url and not t.publish_url.startswith('error') %}
+            <a href="{{ t.publish_url }}" target="_blank" style="font-size: 0.8rem;">{{ t.publish_url }}</a>
+            {% elif t.publish_url %}
+            <span style="font-size: 0.78rem; color: var(--red, #e74c3c);">{{ t.publish_url }}</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if newsletter.status in ['draft', 'queued'] %}
+    <form method="post" action="/newsletters/{{ newsletter.id }}/publish" id="publish-form">
+        <input type="hidden" name="platforms" id="platform-input">
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Select where to publish:</p>
+        <div class="platform-grid">
+            {% for p in platforms %}
+            <div class="platform-card" data-platform="{{ p }}" onclick="togglePlatform(this)">
+                <div class="name">{{ p }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;" onclick="return submitPlatforms()">
+            Queue for Publishing
+        </button>
+    </form>
+    {% endif %}
+</div>
+
+<!-- Final Approve -->
+{% if newsletter.status == 'queued' %}
+<div class="card" style="border: 1px solid var(--green-border); padding: 1.25rem; background: var(--green-bg);">
+    <h3 style="margin-bottom: 0.5rem; color: var(--green);">Ready to Publish</h3>
+    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+        Content and platforms reviewed. Approve to push live to all selected platforms.
+    </p>
+    <form method="post" action="/newsletters/{{ newsletter.id }}/approve-publish">
+        <button type="submit" class="btn btn-success" style="padding: 0.6rem 1.5rem;">Approve &amp; Publish</button>
+    </form>
+</div>
+{% endif %}
+
+{% if newsletter.status == 'published' %}
+<div class="card" style="border: 1px solid var(--green-border); background: var(--green-bg); padding: 1.25rem;">
+    <h3 style="color: var(--green); margin-bottom: 0.2rem;">Published</h3>
+    <p class="meta">This newsletter has been approved and published.</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ── Platform selector (publish destinations) ──────────────────────────────
+const selected = new Set();
+function togglePlatform(el) {
+    const p = el.dataset.platform;
+    if (selected.has(p)) { selected.delete(p); el.classList.remove('selected'); }
+    else { selected.add(p); el.classList.add('selected'); }
+}
+function submitPlatforms() {
+    if (selected.size === 0) { alert('Select at least one platform.'); return false; }
+    document.getElementById('platform-input').value = Array.from(selected).join(',');
+    return true;
+}
+
+// ── Platform preview tabs ──────────────────────────────────────────────────
+function switchTab(platform, btn) {
+    document.querySelectorAll('.preview-panel').forEach(p => p.style.display = 'none');
+    document.querySelectorAll('.preview-tab').forEach(b => {
+        b.style.borderBottomColor = 'transparent';
+        b.style.color = 'var(--text-secondary)';
+    });
+    document.getElementById('tab-' + platform).style.display = 'block';
+    btn.style.borderBottomColor = 'var(--accent)';
+    btn.style.color = 'var(--accent)';
+}
+
+async function generatePreview(platform, newsletterId) {
+    const contentEl = document.getElementById('preview-content-' + platform);
+    const statusEl = document.getElementById('preview-status-' + platform);
+    const copyBtn = document.getElementById('copy-btn-' + platform);
+
+    contentEl.textContent = 'Generating…';
+    statusEl.textContent = '';
+    copyBtn.style.display = 'none';
+
+    try {
+        const resp = await fetch(`/api/newsletters/${newsletterId}/preview/${platform}`, { method: 'POST' });
+        const data = await resp.json();
+        if (data.ok) {
+            contentEl.textContent = data.content;
+            copyBtn.style.display = 'inline-block';
+            statusEl.textContent = 'Generated';
+        } else {
+            contentEl.textContent = 'Error: ' + data.error;
+            statusEl.textContent = 'Failed';
+        }
+    } catch (e) {
+        contentEl.textContent = 'Request failed: ' + e.message;
+        statusEl.textContent = 'Failed';
+    }
+}
+
+function copyPreview(platform) {
+    const text = document.getElementById('preview-content-' + platform).textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copy-btn-' + platform);
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(() => btn.textContent = orig, 2000);
+    });
+}
+</script>
+{% endblock %}

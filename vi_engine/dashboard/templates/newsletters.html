@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% set active = "newsletters" %}
+
+{% block title %}Newsletters — VI Engine{% endblock %}
+
+{% block content %}
+<h1>Newsletters</h1>
+<h2>Review drafts and approve for publishing</h2>
+
+{% if not newsletters %}
+<div class="empty-state">
+    <p style="font-size: 1.1rem; margin-bottom: 0.5rem;">No newsletters yet</p>
+    <p><a href="/generate">Generate one</a> from approved topics.</p>
+</div>
+{% else %}
+<div class="topic-grid">
+    {% for nl in newsletters %}
+    <div class="card" style="{% if nl.status == 'published' %}border-left: 3px solid var(--green);{% elif nl.status == 'queued' %}border-left: 3px solid var(--blue);{% endif %}">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                    <span class="badge badge-{{ nl.status }}">{{ nl.status }}</span>
+                </div>
+                <h3 style="margin-bottom: 0.15rem;"><a href="/newsletters/{{ nl.id }}">{{ nl.title }}</a></h3>
+                <div class="meta">Created {{ nl.created_at }}{% if nl.published_at %} &middot; Published {{ nl.published_at }}{% endif %}</div>
+            </div>
+            <a href="/newsletters/{{ nl.id }}" class="btn btn-outline btn-sm">Open</a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
